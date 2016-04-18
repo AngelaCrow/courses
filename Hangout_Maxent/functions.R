@@ -15,18 +15,19 @@ evModel <-function(fold, pres.covs, bkg.covs, factor.ind=NULL,mxnt.args,path){
   for (i in 1:max(fold)){
     occtest <- pres.covs[fold == i, ]
     occtrain <- pres.covs[fold != i, ]
-    env.values<-data.frame(rbind(pres.covs, bkg.covs))
-
+    env.values<-data.frame(rbind(occtrain, bkg.covs))
+    
     if(!is.null(factor.ind)){
       env.values[, factor.ind]<-as.factor(env.values[, factor.ind])
     }
+    y<-c(rep(1,nrow(occtrain)), rep(0,nrow(bkg.covs)))
     me <- maxent(env.values, y, args=mxnt.args, path="./outputR")
     e<-evaluate(me, p=data.frame(occtest), a=data.frame(bkg.covs))
     auc[i]<-e@auc
     tss<-e@TPR+e@TNR-1
     max.tss[i]<-e@t[which.max(tss)]
   }
- return(list(auc=auc, max.tss=max.tss))
+  return(list(auc=auc, max.tss=max.tss))
 }
 
 #getLambdaTable
@@ -69,11 +70,12 @@ evModel2 <-function(fold, pres.covs, bkg.covs, factor.ind=NULL,mxnt.args,path){
   for (i in 1:max(fold)){
     occtest <- pres.covs[fold == i, ]
     occtrain <- pres.covs[fold != i, ]
-    env.values<-data.frame(rbind(pres.covs, bkg.covs))
+    env.values<-data.frame(rbind(occtrain, bkg.covs))
     
     if(!is.null(factor.ind)){
       env.values[, factor.ind]<-as.factor(env.values[, factor.ind])
     }
+    y<-c(rep(1,nrow(occtrain)), rep(0,nrow(bkg.covs)))
     me <- maxent(env.values, y, args=mxnt.args, path="./outputR")
     nparams[i]<-length(which(getLambdaTable(me@lambdas)$lambdas!=0))
     e<-evaluate(me, p=data.frame(occtest), a=data.frame(bkg.covs))

@@ -9,12 +9,14 @@
 options(java.parameters = "-Xmx1g" )
 library(raster)
 library(dismo)
-setwd("C:/Users/Jorge/Dropbox/Presentaciones/Hangout_Maxent")
+setwd("/Users/Jorge/Dropbox/Presentaciones/Hangout_Maxent/")
 
 #Cargar datos
 occs <- read.csv("./samples/bradypus.csv") #Datos de presencia
 View(occs)
-layers <- stack(list.files("./layers","*.asc$",full.names=T))
+layers <- stack(list.files("./layers","asc",full.names=TRUE))
+#names(layers)<-sub("*.asc$","",list.files("./layers","asc",full.names=FALSE))
+#layers<-readAll(layers)
 plot(layers)
 plot(layers[[1]])
 layers #Ver en consola las caracteristicas del stack
@@ -58,7 +60,7 @@ map <- predict(me, layers, progress="text")
 plot(map)
 
 #Guardar los resultados
-writeRaster(map,"./outputR/map.tif")
+writeRaster(map,"./outputR/map.tif",overwrite=T)
 save(me,file="./outputR/mx_obj.RData")
 
 #Evaluación usando kfold partitioning
@@ -66,14 +68,15 @@ save(me,file="./outputR/mx_obj.RData")
 fold <- kfold(pres.covs, k=5) #Genera un indice aleatorio de los folds
 occtest <- pres.covs[fold == 1, ]
 occtrain <- pres.covs[fold != 1, ]
+y<-c(rep(1,nrow(occtrain)), rep(0,nrow(bkg.covs)))
 
-env.values<-data.frame(rbind(pres.covs, bkg.covs))
+env.values<-data.frame(rbind(occtrain, bkg.covs))
 env.values$ecoreg<-as.factor(env.values$ecoreg) #Importante cuando se usan variables categoricas
 
 me <- maxent(env.values, y, args=c("addsamplestobackground=true"), path="./outputR")
 e <- evaluate(me, p=data.frame(occtest), a=data.frame(bkg.covs))
 str(e)
-?ModelEvaluation-class
+??ModelEvaluation
 
 #Threshold value that maximizes Kappa
 plot(e@t,e@kappa,type="l")
@@ -85,7 +88,7 @@ plot(e@t,tss,type="l")
 e@t[which.max(tss)]
 
 #AUC Plot: X=1-Specificity, Y=Sensitivity
-plot((1-e@TNR),e@TPR,type="l",xlab="Fractional Predicted Area",
+plot((1-e@TNR),e@TPR,type="l",xlab="Fractional Predicted Area (1 - Specificity",
      ylab="Sensitiviy")
 e@auc
 
@@ -105,8 +108,9 @@ max.tss<-rep(NA,5)
 for (i in 1:5){
   occtest <- pres.covs[fold == i, ]
   occtrain <- pres.covs[fold != i, ]
-  env.values<-data.frame(rbind(pres.covs, bkg.covs))
+  env.values<-data.frame(rbind(occtrain, bkg.covs))
   env.values$ecoreg<-as.factor(env.values$ecoreg) #Importante cuando se usan variables categoricas
+  y<-c(rep(1,nrow(occtrain)), rep(0,nrow(bkg.covs)))
   me <- maxent(env.values, y, args=c("addsamplestobackground=true"), path="./outputR")
   e<-evaluate(me, p=data.frame(occtest), a=data.frame(bkg.covs))
   auc[i]<-e@auc
@@ -121,6 +125,7 @@ mean(max.tss)
 #Gráficos de curvas de respuesta. Recuerde que me era el nombre del objeto
 #maxent con el modelo con todas las presencias el cual fue sobreescrito en
 #el anterior loop. Sin embargo, lo podemos restaurar ya que lo guardamos.
+
 load("./outputR/mx_obj.RData")
 response(me)
 response(me,var=1) #Usando indicador de columna
@@ -172,17 +177,18 @@ map2<-predict(me.mfeatures, layers, progress="text")
 map.future2<-predict(me.mfeatures, hotlayers, 
                      args=c("extrapolate=FALSE", "doclamp=TRUE"), 
                      progress="text")
-plot(map2)
+plot(map.future)
 plot(map.future2)
 
 #Elith, J., Kearney, M. and Phillips, S. (2010), The art of modelling 
 #range-shifting species. Methods in Ecology and Evolution, 1: 330–342. 
 
 #Evaluar nuevo modelo
-ev.stats <- evModel(fold, pres.covs, bkg.covs, factor.ind=3, mxnt.args,
-                     path="./outputR")
-mean(auc) #Estadisticas modelo con autofeature
-mean(ev.stats$auc) #Estadisticas modelo con autofeature
+#ev.stats <- evModel(fold, pres.covs, bkg.covs, factor.ind=3, mxnt.args,
+#                    path="./outputR")
+#mean(auc) #Estadisticas modelo con autofeature
+#mean(ev.stats$auc) #Estadisticas modelo con autofeature
+
 #Comparación presentes
 plot(map.tss)
 plot(map2>mean(ev.stats$max.tss))
@@ -199,6 +205,8 @@ plot(map.future2>mean(ev.stats$max.tss))
 #selection criteria. Ecological Applications, 21: 335–342.
 
 #An Introduction to Statistical Learning: with Applications in R (Capitulo 6)
+
+getLambdaTable(me@lambdas)
 
 betas=c(0.02, 0.1, 0.46, 1, 2.2, 4.6)
 opt.lambda <- data.frame(beta=betas, nparams=NA, mean.auc=NA, mean.mtss=NA)
